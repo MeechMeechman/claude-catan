@@ -1,0 +1,6 @@
+torch>=2.1
+numpy>=1.24
+gymnasium>=0.29
+wandb>=0.16
+tqdm
+runpod>=1.6

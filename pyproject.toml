@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "catan-ai"
+version = "0.1.0"
+description = "Trainable Catan AI using cross-dimensional networks and PPO self-play"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+    "numpy>=1.24",
+    "gymnasium>=0.29",
+    "wandb>=0.16",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+runpod = ["runpod>=1.6"]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["catan_ai*"]
