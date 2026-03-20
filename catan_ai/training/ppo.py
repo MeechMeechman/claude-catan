@@ -51,6 +51,7 @@ class PPOConfig:
     map_type: str = "BASE"
     vps_to_win: int = 10
     reward_type: str = "shaped"  # sparse | shaped
+    enemy_type: str = "random"  # random | value_fn | alphabeta
 
     # Self-play
     opponent_pool_size: int = 30
@@ -273,6 +274,7 @@ class PPOTrainer:
             "map_type": cfg.map_type,
             "vps_to_win": cfg.vps_to_win,
             "reward_type": cfg.reward_type,
+            "enemy_class": cfg.enemy_type,
         }
 
         if cfg.use_multiprocess_env and cfg.num_envs > 1:

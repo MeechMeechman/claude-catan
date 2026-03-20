@@ -106,8 +106,13 @@ class CatanTrainEnv(gym.Env):
         self.num_players = config.get("num_players", 2)
         self.map_type = config.get("map_type", "BASE")
         self.vps_to_win = config.get("vps_to_win", 10)
-        self.enemy_player_class = config.get("enemy_class", RandomPlayer)
         self.reward_type = config.get("reward_type", "sparse")  # sparse | shaped
+
+        # Enemy player: support class or string name
+        enemy_spec = config.get("enemy_class", RandomPlayer)
+        if isinstance(enemy_spec, str):
+            enemy_spec = self._resolve_enemy_class(enemy_spec)
+        self.enemy_player_class = enemy_spec
 
         # Potential-based reward shaping weights
         self.shaping_weights = config.get("shaping_weights", {
@@ -420,3 +425,22 @@ class CatanTrainEnv(gym.Env):
         self.enemies = enemies
         self.players = [self.p0] + self.enemies
         self.player_colors = tuple(p.color for p in self.players)
+
+    @staticmethod
+    def _resolve_enemy_class(name: str):
+        """Resolve enemy class from string name (for multiprocessing pickling)."""
+        import sys
+        _REPO = os.path.join(os.path.dirname(__file__), "..", "catanatron_repo", "catanatron")
+        if _REPO not in sys.path:
+            sys.path.insert(0, _REPO)
+
+        if name == "value_fn" or name == "value":
+            from catanatron.players.value import ValueFunctionPlayer
+            return ValueFunctionPlayer
+        elif name == "alphabeta":
+            from catanatron.players.minimax import AlphaBetaPlayer
+            return AlphaBetaPlayer
+        elif name == "random":
+            return RandomPlayer
+        else:
+            raise ValueError(f"Unknown enemy type: {name}")

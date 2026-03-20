@@ -47,6 +47,9 @@ def parse_args():
     parser.add_argument("--encoder-layers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--reward-type", type=str, default="shaped", choices=["sparse", "shaped"])
+    parser.add_argument("--enemy-type", type=str, default="random",
+                        choices=["random", "value_fn", "alphabeta"],
+                        help="Opponent type for training environments")
 
     # Game settings
     parser.add_argument("--num-players", type=int, default=2)
@@ -164,6 +167,7 @@ def main():
         map_type=args.map_type,
         vps_to_win=args.vps_to_win,
         reward_type=args.reward_type,
+        enemy_type=args.enemy_type,
         device=device,
         seed=args.seed,
         wandb_project=args.wandb_project,
@@ -174,11 +178,18 @@ def main():
 
     trainer = PPOTrainer(ppo_config)
 
-    # Load BC warmstart weights into trainer's policy
-    bc_path = os.path.join(args.checkpoint_dir, "bc_warmstart.pt")
-    if os.path.exists(bc_path) and not args.skip_bc:
-        trainer.policy.load_state_dict(torch.load(bc_path, map_location=device, weights_only=True))
-        print("Loaded BC warmstart into PPO trainer")
+    # Load checkpoint weights into trainer's policy (for continuing training)
+    if args.checkpoint and os.path.exists(args.checkpoint):
+        ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
+        state_dict = ckpt.get("policy_state_dict", ckpt)
+        trainer.policy.load_state_dict(state_dict)
+        print(f"Loaded checkpoint into PPO trainer: {args.checkpoint}")
+    else:
+        # Load BC warmstart weights into trainer's policy
+        bc_path = os.path.join(args.checkpoint_dir, "bc_warmstart.pt")
+        if os.path.exists(bc_path) and not args.skip_bc:
+            trainer.policy.load_state_dict(torch.load(bc_path, map_location=device, weights_only=True))
+            print("Loaded BC warmstart into PPO trainer")
 
     trained_policy = trainer.train()
 
