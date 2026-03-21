@@ -114,6 +114,11 @@ class CatanTrainEnv(gym.Env):
             enemy_spec = self._resolve_enemy_class(enemy_spec)
         self.enemy_player_class = enemy_spec
 
+        # Curriculum: mix of enemy types per reset
+        # value_fn_prob=0.5 means 50% of games use value_fn, rest use primary enemy_class
+        self.value_fn_prob = config.get("value_fn_prob", 0.0)
+        self._enemy_classes = {}  # cache resolved classes
+
         # Potential-based reward shaping weights
         self.shaping_weights = config.get("shaping_weights", {
             "vp": 0.3,
@@ -125,6 +130,7 @@ class CatanTrainEnv(gym.Env):
         all_colors = [Color.BLUE, Color.RED, Color.WHITE, Color.ORANGE]
         self.p0_color = Color.BLUE
         enemy_colors = all_colors[1:self.num_players]
+        self._enemy_colors = enemy_colors
         self.enemies = [self.enemy_player_class(c) for c in enemy_colors]
         self.p0 = Player(self.p0_color)
         self.players = [self.p0] + self.enemies
@@ -198,6 +204,15 @@ class CatanTrainEnv(gym.Env):
         super().reset(seed=seed)
         if seed is not None:
             random.seed(seed)
+
+        # Curriculum: randomly pick enemy type per game
+        if self.value_fn_prob > 0 and random.random() < self.value_fn_prob:
+            enemy_cls = self._get_enemy_class("value_fn")
+        else:
+            enemy_cls = self.enemy_player_class
+        self.enemies = [enemy_cls(c) for c in self._enemy_colors]
+        self.players = [self.p0] + self.enemies
+        self.player_colors = tuple(p.color for p in self.players)
 
         catan_map = build_map(self.map_type)
         for p in self.players:
@@ -419,6 +434,12 @@ class CatanTrainEnv(gym.Env):
             and self.game.state.current_color() != self.p0_color
         ):
             self.game.play_tick()
+
+    def _get_enemy_class(self, name: str):
+        """Get (cached) enemy class by name."""
+        if name not in self._enemy_classes:
+            self._enemy_classes[name] = self._resolve_enemy_class(name)
+        return self._enemy_classes[name]
 
     def set_enemies(self, enemies: List[Player]):
         """Replace enemy players (for self-play with trained agents)."""

@@ -50,6 +50,12 @@ def parse_args():
     parser.add_argument("--enemy-type", type=str, default="random",
                         choices=["random", "value_fn", "alphabeta"],
                         help="Opponent type for training environments")
+    parser.add_argument("--value-fn-prob", type=float, default=0.0,
+                        help="Curriculum: probability of value_fn opponent per game (0-1)")
+    parser.add_argument("--ent-coef", type=float, default=0.01,
+                        help="Entropy coefficient (higher = more exploration)")
+    parser.add_argument("--ent-coef-final", type=float, default=0.001,
+                        help="Final entropy coefficient")
 
     # Game settings
     parser.add_argument("--num-players", type=int, default=2)
@@ -168,6 +174,9 @@ def main():
         vps_to_win=args.vps_to_win,
         reward_type=args.reward_type,
         enemy_type=args.enemy_type,
+        value_fn_prob=args.value_fn_prob,
+        ent_coef=args.ent_coef,
+        ent_coef_final=args.ent_coef_final,
         device=device,
         seed=args.seed,
         wandb_project=args.wandb_project,

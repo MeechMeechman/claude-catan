@@ -52,6 +52,7 @@ class PPOConfig:
     vps_to_win: int = 10
     reward_type: str = "shaped"  # sparse | shaped
     enemy_type: str = "random"  # random | value_fn | alphabeta
+    value_fn_prob: float = 0.0  # curriculum: prob of value_fn opponent per game
 
     # Self-play
     opponent_pool_size: int = 30
@@ -275,6 +276,7 @@ class PPOTrainer:
             "vps_to_win": cfg.vps_to_win,
             "reward_type": cfg.reward_type,
             "enemy_class": cfg.enemy_type,
+            "value_fn_prob": cfg.value_fn_prob,
         }
 
         if cfg.use_multiprocess_env and cfg.num_envs > 1:
