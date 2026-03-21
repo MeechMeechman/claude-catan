@@ -121,9 +121,13 @@ class CatanTrainEnv(gym.Env):
 
         # Potential-based reward shaping weights
         self.shaping_weights = config.get("shaping_weights", {
-            "vp": 0.3,
-            "production": 0.1,
-            "road_length": 0.05,
+            "vp": 0.4,
+            "production": 0.15,
+            "city": 0.15,         # reward city upgrades (doubles production + 2VP)
+            "diversity": 0.05,    # resource type diversity
+            "port_access": 0.05,  # building near ports
+            "road_length": 0.03,
+            "hand_synergy": 0.05, # close to affording city/settlement
         })
 
         # Build color assignments
@@ -394,29 +398,80 @@ class CatanTrainEnv(gym.Env):
         state = self.game.state
         key = player_key(state, self.p0_color)
         ps = state.player_state
+        catan_map = state.board.map
 
         vp = float(ps[key + "_ACTUAL_VICTORY_POINTS"])
 
-        # Production rate: sum of probabilities for all tiles adjacent to settlements/cities
+        # Production rate
         production = 0.0
-        catan_map = state.board.map
-        for nid in get_player_buildings(state, self.p0_color, SETTLEMENT):
+        settlements = get_player_buildings(state, self.p0_color, SETTLEMENT)
+        cities = get_player_buildings(state, self.p0_color, CITY)
+        for nid in settlements:
             for tile in catan_map.adjacent_tiles.get(nid, []):
                 if tile.resource is not None:
                     production += number_probability(tile.number)
-        for nid in get_player_buildings(state, self.p0_color, CITY):
+        for nid in cities:
             for tile in catan_map.adjacent_tiles.get(nid, []):
                 if tile.resource is not None:
                     production += 2 * number_probability(tile.number)
 
+        # City count (key missing signal — cities are the snowball mechanic)
+        num_cities = len(list(cities))
+
+        # Resource diversity (how many distinct resource types we produce)
+        res_types = set()
+        all_buildings = list(settlements) + list(cities)
+        for nid in all_buildings:
+            for tile in catan_map.adjacent_tiles.get(nid, []):
+                if tile.resource is not None:
+                    res_types.add(tile.resource)
+        diversity = len(res_types)  # 0-5
+
+        # Port access
+        port_count = 0
+        building_set = set(all_buildings)
+        for resource, node_ids in catan_map.port_nodes.items():
+            for nid in node_ids:
+                if nid in building_set:
+                    port_count += 1
+                    break  # count each port type once
+
         road_len = float(ps[key + "_LONGEST_ROAD_LENGTH"])
 
+        # Hand synergy: how close to affording a city (3 ore + 2 wheat)
+        # or settlement (1 brick + 1 wood + 1 wheat + 1 sheep)
+        hand_synergy = 0.0
+        try:
+            ore = float(ps[key + "_ORE_IN_HAND"])
+            wheat = float(ps[key + "_WHEAT_IN_HAND"])
+            sheep = float(ps[key + "_SHEEP_IN_HAND"])
+            brick = float(ps[key + "_BRICK_IN_HAND"])
+            wood = float(ps[key + "_WOOD_IN_HAND"])
+
+            city_progress = (min(ore, 3) / 3.0 + min(wheat, 2) / 2.0) / 2.0
+            sett_progress = (min(brick, 1) + min(wood, 1) + min(wheat, 1) + min(sheep, 1)) / 4.0
+            hand_synergy = max(city_progress, sett_progress)
+        except (KeyError, TypeError):
+            pass
+
         w = self.shaping_weights
-        potential = w["vp"] * vp + w["production"] * production + w["road_length"] * road_len
+        potential = (
+            w["vp"] * vp
+            + w["production"] * production
+            + w.get("city", 0) * num_cities
+            + w.get("diversity", 0) * diversity
+            + w.get("port_access", 0) * port_count
+            + w["road_length"] * road_len
+            + w.get("hand_synergy", 0) * hand_synergy
+        )
 
         # Normalize to [0, 1] range approximately
-        # Max VP ~10, max production ~3.0, max road ~15
-        potential = potential / (w["vp"] * 10 + w["production"] * 3.0 + w["road_length"] * 15)
+        max_potential = (
+            w["vp"] * 10 + w["production"] * 3.0 + w.get("city", 0) * 4
+            + w.get("diversity", 0) * 5 + w.get("port_access", 0) * 3
+            + w["road_length"] * 15 + w.get("hand_synergy", 0) * 1.0
+        )
+        potential = potential / max(max_potential, 1e-8)
         return potential
 
     # ---- Helpers ----
