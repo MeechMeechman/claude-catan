@@ -129,10 +129,8 @@ class Tournament:
             "map_type": self.map_type,
             "vps_to_win": self.vps_to_win,
             "reward_type": "sparse",
+            "enemy_class": type(opponent),  # Set at config level so reset() preserves it
         })
-        env.enemies = [opponent]
-        env.players = [env.p0] + [opponent]
-        env.player_colors = tuple(p.color for p in env.players)
 
         for game_idx in range(num_games):
             obs, info = env.reset(seed=game_idx * 31)
